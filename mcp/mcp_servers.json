@@ -14,13 +14,23 @@
       "label": "GitHub",
       "transport": "stdio",
       "command": "github-mcp-server",
-      "args": ["stdio"],
+      "args": [
+        "stdio"
+      ],
       "cwd": "${AETHERIS_AGENTS_PATH}",
       "env": {
         "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"
       },
       "auth": "env_token",
       "notes": "Requires github-mcp-server on PATH (go install) and GITHUB_PERSONAL_ACCESS_TOKEN set in Rig Settings."
+    },
+    {
+      "id": "bank-statement",
+      "label": "Bank Statement",
+      "transport": "http",
+      "url": "https://echo.trialrun.net/mcp/",
+      "auth": "user_token",
+      "notes": "Via Echo/Kong. Per-run user credential in BANK_STATEMENT_MCP_AUTH_TOKEN or BANK_STATEMENT_MCP_API_KEY; opt in with BANK_STATEMENT_MCP_ENABLED=true. See mcp/http/bank-statement/README.md."
     }
   ]
 }
