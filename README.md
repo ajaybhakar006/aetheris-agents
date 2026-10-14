@@ -74,6 +74,93 @@ mix aetheris run ../aetheris-agents/api/tenant/agents/at1cmd.exs
 
 ---
 
+## Bank statement agent — local setup and end-to-end run
+
+An LLM agent (`agents/bank_statement_agent.exs`) that calls the Bank Statement MCP server
+through Echo/Kong. Tools (`bank_statement_list`, `find_bank_statement`,
+`bank_statement_to_hledger`) are discovered at run time. Details:
+[`mcp/http/bank-statement/README.md`](mcp/http/bank-statement/README.md).
+
+### 1. Prerequisites
+
+- [mise](https://mise.jdx.dev/) with the sibling harness checked out at `../aetheris`
+  (`~/sandbox/elixirws/aetheris`). The harness pins Elixir 1.17.2 / OTP 27 / Node 22 in its
+  `.mise.toml`; a system Elixir older than 1.17 fails with
+  *"supports only Elixir ~> 1.17"*, so run harness commands through `mise exec --`.
+- Python 3.12 (`mise.toml` here) with `pytest` for the local tests.
+- An LLM provider key and a **per-user** Echo credential (token or API key).
+
+### 2. Install
+
+```bash
+# this repo
+python3 -m pip install pytest
+
+# harness (once)
+cd ../aetheris
+mise install
+mise exec -- sh -c 'mix deps.get && mix compile'
+```
+
+### 3. Configure (environment of the run process)
+
+```bash
+export BANK_STATEMENT_MCP_ENABLED=true
+export BANK_STATEMENT_MCP_AUTH_TOKEN=<user token>     # or BANK_STATEMENT_MCP_API_KEY=<key> (set exactly one)
+export AETHERIS_PROVIDER=openrouter                   # default: anthropic
+export AETHERIS_MODEL=<model id>                      # default: claude-haiku-4-5-20251001
+export OPENROUTER_API_KEY=<key>                       # or ANTHROPIC_API_KEY for the anthropic provider
+export BANK_STATEMENT_PROMPT="List my bank statements."   # optional
+```
+
+Optional: `BANK_STATEMENT_MCP_URL` (default `https://echo.trialrun.net/mcp/`),
+`BANK_STATEMENT_MCP_TIMEOUT_MS` (default `30000`). See
+[`.env.example`](mcp/http/bank-statement/.env.example). Never commit credentials; set them
+per run, not in a shared shell or service-wide env.
+
+### 4. Verify, then run
+
+```bash
+# a. Offline: config, discovery, all three tools, 401/403, tenant isolation (mock Echo/Kong)
+cd ~/sandbox/elixirws/aetheris-agents
+python3 -m pytest -q tests/test_bank_statement_mcp.py      # 19 passed
+
+# b. Live reachability: expect HTTP 200 and the three tools
+curl -s https://echo.trialrun.net/mcp/ -H "Authorization: Bearer $BANK_STATEMENT_MCP_AUTH_TOKEN" \
+  -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+# (for an API key use:  -H "X-API-Key: $BANK_STATEMENT_MCP_API_KEY")
+
+# c. Run the agent end to end (from the harness repo)
+cd ../aetheris
+mise exec -- mix aetheris run ../aetheris-agents/agents/bank_statement_agent.exs
+```
+
+Success prints `%{label: "Bank statement agent", status: :done, run_id: "bank-statement-…"}`.
+The `[sandbox] namespace entry failed` / `cgroup delegation unavailable` lines are
+non-fatal on hosts without user namespaces or cgroup delegation.
+
+### 5. Inspect the run
+
+```bash
+mise exec -- mix aetheris inspect <run_id>     # prompt → llm → tool_called (mcp) → tool_result → run_complete
+mise exec -- mix aetheris list --limit 20
+```
+
+A healthy run shows a `tool_called` event with `server_id: "bank_statement"`, `source: "mcp"`,
+followed by a `tool_result`, then `run_complete` (`reason: agent_finished`).
+
+### Troubleshooting
+
+| Symptom | Cause / fix |
+|---|---|
+| `supports only Elixir ~> 1.17` | Not using the harness toolchain; use `mise exec --` |
+| `Bank Statement MCP is not enabled` | `BANK_STATEMENT_MCP_ENABLED` is not `true` |
+| `no user credential is set` / `Set only one of …` | Export exactly one of token or API key |
+| 401 from Echo | Missing/invalid credential |
+| Tool denied (403) | User lacks `bank_statement.read`; report it, do not retry other identities |
+
+---
+
 ## Repository conventions
 
 See [`CLAUDE.md`](CLAUDE.md) for the full reference. Key points:
