@@ -13,6 +13,8 @@ User request → Aetheris agent run → HTTP MCP client (tools/list, tools/call)
   → tool result → agent → user response
 ```
 
+Full Kong edge flow with sequence diagrams: [echo-user-context.md](echo-user-context.md).
+
 Aetheris only supplies a credential header. Echo/Kong owns authentication, RBAC and
 `X-User-Context`. Aetheris never creates, decodes or forwards it; tenant IDs, roles and
 permissions are never set here.
